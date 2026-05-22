@@ -7,7 +7,9 @@ defmodule Atlas.Application do
   - One `Oban` instance bound to the repo returned by
     `AtlasSchemas.Config.repo/0` (the `:ecto_shorts` `:repo` seam) for
     background Stripe event processing (`:stripe` queue, concurrency
-    `10`). The `Oban.Engines.Lite` engine is used so Oban runs against a
+    `10`). The instance is named `Atlas.Oban` so it never collides with a
+    host application's own default-named `Oban` instance. The
+    `Oban.Engines.Lite` engine is used so Oban runs against a
     SQLite-backed repo. Binding to the seam — rather than the literal
     `AtlasSchemas.Repo` — means Oban uses whatever repo the host app
     configures; when the host overrides `:ecto_shorts` `:repo`, the
@@ -32,6 +34,7 @@ defmodule Atlas.Application do
     children = [
       {Oban,
        [
+         name: Atlas.Oban,
          repo: AtlasSchemas.Config.repo(),
          engine: Oban.Engines.Lite,
          queues: [stripe: 10],
