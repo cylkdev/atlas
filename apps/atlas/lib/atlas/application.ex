@@ -4,8 +4,15 @@ defmodule Atlas.Application do
 
   Supervises the children the domain service node needs to run:
 
-  - One `Oban` instance bound to `AtlasSchemas.Repo` for background
-    Stripe event processing (`:stripe` queue, concurrency `10`).
+  - One `Oban` instance bound to the repo returned by
+    `AtlasSchemas.Config.repo/0` (the `:ecto_shorts` `:repo` seam) for
+    background Stripe event processing (`:stripe` queue, concurrency
+    `10`). The `Oban.Engines.Lite` engine is used so Oban runs against a
+    SQLite-backed repo. Binding to the seam — rather than the literal
+    `AtlasSchemas.Repo` — means Oban uses whatever repo the host app
+    configures; when the host overrides `:ecto_shorts` `:repo`, the
+    dep's own `AtlasSchemas.Repo` is never compiled, so a literal
+    reference would be an unloaded module.
   - `Atlas.AutoScaling.PubSub` — Registry-backed pubsub for
     EventBridge auto-scaling lifecycle events.
   - `Atlas.Endpoint` — Bandit + `Atlas.EventBridgePlug` so EventBridge
@@ -25,7 +32,8 @@ defmodule Atlas.Application do
     children = [
       {Oban,
        [
-         repo: AtlasSchemas.Repo,
+         repo: AtlasSchemas.Config.repo(),
+         engine: Oban.Engines.Lite,
          queues: [stripe: 10],
          plugins: [Oban.Plugins.Pruner]
        ]},
