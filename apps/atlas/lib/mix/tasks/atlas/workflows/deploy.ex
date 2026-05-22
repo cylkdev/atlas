@@ -18,6 +18,15 @@ defmodule Mix.Tasks.Atlas.Workflows.Deploy do
 
   @impl Mix.Task
   def run(_argv) do
+    # `app.start` (the requirement above) starts the host project's
+    # applications. When :atlas is consumed as a dependency inside an umbrella
+    # where no *started* application depends on it, :atlas is loaded but never
+    # started, so its supervision tree -- including
+    # Atlas.Workflows.PubSub.Registry -- is absent and Atlas.Workflows.run/2
+    # crashes with "unknown registry". Explicitly start :atlas so the workflow
+    # runtime (Registry, PubSub, supervisors) is available regardless of host.
+    {:ok, _started} = Application.ensure_all_started(:atlas)
+
     workflow_id = generate_id()
     Atlas.Log.info("workflow:#{workflow_id}", "deployment task starting")
 
