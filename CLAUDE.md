@@ -1,0 +1,1 @@
+- Pointing out a problem, asking a question, or describing something is not approval. 
