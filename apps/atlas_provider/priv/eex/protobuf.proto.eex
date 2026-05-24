@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package <%= @package_name %>;
+
+<%= for {message_name, fields} <- @messages do %>
+message <%= message_name %> {
+<%= for {field_name, field_schema} <- fields do %>
+  <%= field_schema.type %> <%= field_name %> = <%= field_schema.field_number %>;
+<% end %>
+}
+<% end %>
+
+<%= for {service_name, methods} <- @services do %>
+service <%= service_name %> {
+<%= for {method_name, method_spec} <- methods do %>
+  rpc <%= method_name %> (<%= method_spec.request %>) returns (<%= method_spec.response %>) {}
+<% end %>
+}
+<% end %>
