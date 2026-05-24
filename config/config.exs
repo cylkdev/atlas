@@ -92,6 +92,8 @@ if Mix.env() === :test do
     pool: Ecto.Adapters.SQL.Sandbox,
     pool_size: 10,
     show_sensitive_data_on_connection_error: true
+
+  config :aws, :sandbox, enabled: true
 end
 
 if Mix.env() === :prod do

@@ -18,6 +18,8 @@ defmodule Mix.Tasks.Atlas do
     * `mix atlas.crates.download`  — Download a published release artifact
     * `mix atlas.crates.set`       — Point a release at a previously-uploaded version
                                          (rollback or roll-forward)
+    * `mix atlas.deploy.iam_role.apply`  — Create or update the GitHub Actions OIDC deploy role
+    * `mix atlas.deploy.iam_role.verify` — Verify the deploy role matches the expected policy
 
   Run `mix help <task>` for detailed usage of any subtask, e.g.
   `mix help atlas.crates.publish`.
