@@ -11,18 +11,21 @@ defmodule Mix.Tasks.Atlas do
 
   ## Subtasks
 
-    * `mix atlas.releases.build`     — Build an OTP release tarball via `mix release`
-    * `mix atlas.crates.publish`   — Release and upload one or more apps
-    * `mix atlas.crates.list`      — List crate releases
-    * `mix atlas.crates.latest`    — Show the latest published content for a release
-    * `mix atlas.crates.download`  — Download a published release artifact
-    * `mix atlas.crates.set`       — Point a release at a previously-uploaded version
-                                         (rollback or roll-forward)
+    * `mix atlas.init`                   — Start Atlas and run pending migrations
+    * `mix atlas.releases.build`         — Build an OTP release tarball via `mix release`
+    * `mix atlas.releases.publish`       — Build (if needed) and upload release tarballs
+    * `mix atlas.crates.list`            — List crate releases
+    * `mix atlas.crates.latest`          — Show the latest published content for a release
+    * `mix atlas.crates.download`        — Download a published release artifact
+    * `mix atlas.crates.set`             — Point a release at a previously-uploaded version
+                                           (rollback or roll-forward)
     * `mix atlas.deploy.iam_role.apply`  — Create or update the GitHub Actions OIDC deploy role
     * `mix atlas.deploy.iam_role.verify` — Verify the deploy role matches the expected policy
+    * `mix atlas.workflows.deploy`       — Run the deployment workflow end-to-end
+    * `mix atlas.tunnels.start`          — Start the Cloudflare tunnel for Atlas events
 
   Run `mix help <task>` for detailed usage of any subtask, e.g.
-  `mix help atlas.crates.publish`.
+  `mix help atlas.releases.publish`.
   """
 
   use Mix.Task

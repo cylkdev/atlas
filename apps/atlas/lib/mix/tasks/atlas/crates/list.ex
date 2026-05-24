@@ -10,17 +10,15 @@ defmodule Mix.Tasks.Atlas.Crates.List do
 
   alias Mix.Atlas.Options
   alias AtlasSchemas.Crates
-  alias AtlasSchemas.Migrations
 
-  @requirements ["app.start"]
+  @requirements ["app.start", "atlas.init"]
 
-  @switches [limit: [:integer, :keep], enabled_only: :boolean, migrate: :boolean]
+  @switches [limit: [:integer, :keep], enabled_only: :boolean]
   @aliases [l: :limit]
 
   @impl Mix.Task
   def run(argv) do
     opts = Options.parse!(argv, @switches, @aliases)
-    if opts[:migrate], do: Migrations.migrate()
 
     limit = Options.fetch_one(opts, :limit, 50)
 

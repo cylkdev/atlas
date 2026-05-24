@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Atlas.Releases.Publish do
   alias Atlas.Crates
   alias Mix.Atlas.Options
 
-  @requirements ["app.start"]
+  @requirements ["app.start", "atlas.init"]
 
   @switches [app: :keep]
   @aliases [a: :app]

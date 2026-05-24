@@ -1,5 +1,12 @@
 defmodule AtlasSchemas.Application do
-  @moduledoc "Supervises `AtlasSchemas.Repo`."
+  @moduledoc """
+  Supervises `AtlasSchemas.Repo`.
+
+  `AtlasSchemas.Repo` is started when it is the configured repo (i.e.
+  no host application has overridden `config :atlas_schemas, :repo`).
+  When a host supplies its own repo, it is responsible for starting that
+  repo — this supervisor starts nothing in that case.
+  """
 
   use Application
 
@@ -10,12 +17,10 @@ defmodule AtlasSchemas.Application do
     Supervisor.start_link(children, opts)
   end
 
-  if Mix.env() in [:dev, :test] do
-    def children do
+  def children do
+    if AtlasSchemas.Config.repo() === AtlasSchemas.Repo do
       [AtlasSchemas.Repo]
-    end
-  else
-    def children do
+    else
       []
     end
   end

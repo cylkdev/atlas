@@ -4,17 +4,10 @@ defmodule Atlas.Application do
 
   Supervises the children the domain service node needs to run:
 
-  - One `Oban` instance bound to the repo returned by
-    `AtlasSchemas.Config.repo/0` (the `:ecto_shorts` `:repo` seam) for
-    background Stripe event processing (`:stripe` queue, concurrency
-    `10`). The instance is named `Atlas.Oban` so it never collides with a
-    host application's own default-named `Oban` instance. The
-    `Oban.Engines.Lite` engine is used so Oban runs against a
-    SQLite-backed repo. Binding to the seam — rather than the literal
-    `AtlasSchemas.Repo` — means Oban uses whatever repo the host app
-    configures; when the host overrides `:ecto_shorts` `:repo`, the
-    dep's own `AtlasSchemas.Repo` is never compiled, so a literal
-    reference would be an unloaded module.
+  - `Atlas.ObanManager` — one named Oban instance bound to
+    `AtlasSchemas.Config.repo/0`. Engine and per-env overrides are
+    configured via `config :atlas, Oban, ...`. See `Atlas.ObanManager`
+    for details.
   - `Atlas.AutoScaling.PubSub` — Registry-backed pubsub for
     EventBridge auto-scaling lifecycle events.
   - `Atlas.Endpoint` — Bandit + `Atlas.EventBridgePlug` so EventBridge
@@ -32,14 +25,7 @@ defmodule Atlas.Application do
   @spec start(term(), term()) :: Supervisor.on_start()
   def start(_type, _args) do
     children = [
-      {Oban,
-       [
-         name: Atlas.Oban,
-         repo: AtlasSchemas.Config.repo(),
-         engine: Oban.Engines.Lite,
-         queues: [stripe: 10],
-         plugins: [Oban.Plugins.Pruner]
-       ]},
+      Atlas.ObanManager.supervisor_child_spec(),
       Atlas.AutoScaling.PubSub,
       Atlas.Endpoint,
       Atlas.Workflows.Supervisor

@@ -22,15 +22,9 @@ config :atlas,
   content_bucket: "atlas-artifacts",
   state_backend: Atlas.Backend.S3,
   state_bucket: "atlas-state",
-  state_key: "atlas/state.json"
+  state_key: "atlas/state.json",
+  oban_name: Atlas.Oban
 
-config :atlas, Atlas.Endpoint,
-  scheme: :http,
-  port: String.to_integer(System.get_env("ATLAS_ENDPOINT_PORT") || "4000")
-
-config :atlas, Atlas.EventBridgePlug,
-  api_key_name: System.get_env("ATLAS_EVENTBRIDGE_API_KEY_NAME") || "X-Atlas-Webhook-Key",
-  api_key_value: System.get_env("ATLAS_EVENTBRIDGE_API_KEY_VALUE")
 
 config :ex_utils, ExUtils.Strings,
   to_existing_atom: false,
@@ -111,7 +105,7 @@ config :atlas_schemas, AtlasSchemas.Repo,
   migration_primary_key: [type: :bigserial],
   migration_timestamps: [type: :utc_datetime_usec]
 
-config :ecto_shorts, :repo, AtlasSchemas.Repo
+config :atlas_schemas, :repo, AtlasSchemas.Repo
 
 config :logger, :console,
   level: :debug,

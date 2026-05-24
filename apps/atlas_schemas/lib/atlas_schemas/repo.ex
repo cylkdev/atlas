@@ -9,7 +9,7 @@ if AtlasSchemas.Config.repo() === AtlasSchemas.Repo do
     End-to-end use:
     - `AtlasSchemas.Application` starts this repo at boot.
     - Context modules in `atlas_schemas/<context>/` call `EctoShorts.Actions.*`.
-      The repo is configured globally with `config :ecto_shorts, :repo, AtlasSchemas.Repo`,
+      The repo is configured globally with `config :atlas_schemas, :repo, AtlasSchemas.Repo`,
       so context functions never pass `repo:` options.
     - Migrations under `apps/atlas_schemas/priv/repo/migrations/` run with
       `mix ecto.migrate`.

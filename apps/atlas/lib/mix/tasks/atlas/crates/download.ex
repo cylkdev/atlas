@@ -14,18 +14,16 @@ defmodule Mix.Tasks.Atlas.Crates.Download do
   use Mix.Task
 
   alias Atlas.Crates
-  alias AtlasSchemas.Migrations
   alias Mix.Atlas.Options
 
-  @requirements ["app.start"]
+  @requirements ["app.start", "atlas.init"]
 
-  @switches [app: :keep, content_id: :keep, output: :keep, migrate: :boolean]
+  @switches [app: :keep, content_id: :keep, output: :keep]
   @aliases [a: :app, o: :output]
 
   @impl Mix.Task
   def run(argv) do
     opts = Options.parse!(argv, @switches, @aliases)
-    if opts[:migrate], do: Migrations.migrate()
 
     app = Options.fetch_one!(opts, :app)
     output = Options.fetch_one!(opts, :output)
