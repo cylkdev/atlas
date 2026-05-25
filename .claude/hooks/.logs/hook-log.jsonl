@@ -1,0 +1,24 @@
+{"ts":"2026-05-25T01:48:37.167Z","hook":"session-init","projectRoot":"/Users/kurthogarth/Documents/GitHub/atlas_umbrella","gitBranch":"main"}
+{"ts":"2026-05-25T01:52:19.076Z","hook":"iteration-context","action":"skip","iterationCount":1}
+{"ts":"2026-05-25T01:57:53.290Z","hook":"iteration-context","action":"skip","iterationCount":2}
+{"ts":"2026-05-25T02:02:30.423Z","hook":"session-init","projectRoot":"/Users/kurthogarth/Documents/GitHub/atlas_umbrella","gitBranch":"main"}
+{"ts":"2026-05-25T02:02:49.860Z","hook":"dev-rules-reminder","action":"inject","iterationCount":0}
+{"ts":"2026-05-25T02:02:49.860Z","hook":"iteration-context","action":"skip","iterationCount":1}
+{"ts":"2026-05-25T02:06:42.547Z","hook":"iteration-context","action":"skip","iterationCount":2}
+{"ts":"2026-05-25T02:08:10.122Z","hook":"iteration-context","action":"skip","iterationCount":3}
+{"ts":"2026-05-25T02:10:06.197Z","hook":"iteration-context","action":"skip","iterationCount":4}
+{"ts":"2026-05-25T02:17:37.227Z","hook":"iteration-context","action":"skip","iterationCount":5,"reason":"no-tsv"}
+{"ts":"2026-05-25T02:19:54.120Z","hook":"dev-rules-reminder","action":"inject","iterationCount":5}
+{"ts":"2026-05-25T02:19:54.120Z","hook":"iteration-context","action":"skip","iterationCount":6}
+{"ts":"2026-05-25T02:29:02.356Z","hook":"iteration-context","action":"skip","iterationCount":7}
+{"ts":"2026-05-25T02:37:27.197Z","hook":"iteration-context","action":"skip","iterationCount":3}
+{"ts":"2026-05-25T02:37:53.766Z","hook":"iteration-context","action":"skip","iterationCount":8}
+{"ts":"2026-05-25T02:38:53.791Z","hook":"subagent-context","action":"skip","reason":"no-active-tsv"}
+{"ts":"2026-05-25T02:38:59.390Z","hook":"subagent-context","action":"skip","reason":"no-active-tsv"}
+{"ts":"2026-05-25T02:39:04.091Z","hook":"subagent-context","action":"skip","reason":"no-active-tsv"}
+{"ts":"2026-05-25T02:39:11.947Z","hook":"subagent-context","action":"skip","reason":"no-active-tsv"}
+{"ts":"2026-05-25T02:39:17.785Z","hook":"subagent-context","action":"skip","reason":"no-active-tsv"}
+{"ts":"2026-05-25T02:39:41.346Z","hook":"privacy-block","action":"warn","tool":"Bash","pattern":".key"}
+{"ts":"2026-05-25T02:39:46.861Z","hook":"privacy-block","action":"warn","tool":"Bash","pattern":".key"}
+{"ts":"2026-05-25T02:40:01.313Z","hook":"privacy-block","action":"warn","tool":"Bash","pattern":".key"}
+{"ts":"2026-05-25T02:42:18.645Z","hook":"stop-notify","projectName":"atlas_umbrella","duration":"53m 41s","iterations":0}

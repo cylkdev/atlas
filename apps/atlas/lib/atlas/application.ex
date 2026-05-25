@@ -11,7 +11,14 @@ defmodule Atlas.Application do
   - `Atlas.AutoScaling.PubSub` — Registry-backed pubsub for
     EventBridge auto-scaling lifecycle events.
   - `Atlas.Endpoint` — Bandit + `Atlas.EventBridgePlug` so EventBridge
-    can POST lifecycle events into the node.
+    can POST lifecycle events into the node. **Always supervised, but
+    only binds a port when `Atlas.Endpoint.server?/0` is `true`** —
+    i.e. when the consumer sets `config :atlas, Atlas.Endpoint,
+    server: true` or when the node was booted via `mix atlas.server`
+    (which sets `config :atlas, :serve_endpoints, true`). The
+    supervisor itself starts unconditionally so the supervision-tree
+    shape is stable across boots; the serve / don't-serve decision
+    lives in `Atlas.Endpoint.init/1`.
   - `Atlas.Workflows.Supervisor` — workflow runtime (Registry,
     PubSub, Task.Supervisor, Orchestrator DynamicSupervisor).
 

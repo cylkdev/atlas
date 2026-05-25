@@ -12,6 +12,8 @@ defmodule Mix.Tasks.Atlas do
   ## Subtasks
 
     * `mix atlas.init`                   — Start Atlas and run pending migrations
+    * `mix atlas.server`                 — Start Atlas with `Atlas.Endpoint` serving HTTP
+                                           (use `iex -S mix atlas.server` for an interactive node)
     * `mix atlas.releases.build`         — Build an OTP release tarball via `mix release`
     * `mix atlas.releases.publish`       — Build (if needed) and upload release tarballs
     * `mix atlas.crates.list`            — List crate releases
