@@ -22,3 +22,5 @@
 {"ts":"2026-05-25T02:39:46.861Z","hook":"privacy-block","action":"warn","tool":"Bash","pattern":".key"}
 {"ts":"2026-05-25T02:40:01.313Z","hook":"privacy-block","action":"warn","tool":"Bash","pattern":".key"}
 {"ts":"2026-05-25T02:42:18.645Z","hook":"stop-notify","projectName":"atlas_umbrella","duration":"53m 41s","iterations":0}
+{"ts":"2026-05-25T02:42:42.378Z","hook":"session-init","projectRoot":"/Users/kurthogarth/Documents/GitHub/atlas_umbrella","gitBranch":"main"}
+{"ts":"2026-05-25T02:43:23.781Z","hook":"stop-notify","projectName":"atlas_umbrella","duration":"40m 53s","iterations":0}
