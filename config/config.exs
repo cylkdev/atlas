@@ -9,6 +9,17 @@
 # move said applications out of the umbrella.
 import Config
 
+# `:erlexec` (the Erlang library Atlas uses to spawn OS processes via
+# `:exec`) consults the `SHELL` environment variable when it boots
+# the port unless `:shell_executable` is set explicitly. In container
+# / CI / systemd contexts `SHELL` is often unset, in which case
+# erlexec refuses to start the port and Atlas's deploy tasks fail at
+# boot. Pinning `shell_executable` here keeps Atlas boot deterministic
+# regardless of the surrounding environment.
+#
+# erlexec is an Erlang application, so the value must be a charlist.
+config :erlexec, shell_executable: ~c"/bin/sh"
+
 config :flared,
   api_token: [{:system, "CLOUDFLARE_API_TOKEN"}],
   account_id: [{:system, "CLOUDFLARE_ACCOUNT_ID"}],
@@ -18,13 +29,13 @@ config :flared,
   dns: %{ttl: 1}
 
 config :atlas,
+  mix_env: Mix.env(),
   content_backend: Atlas.Backend.S3,
   content_bucket: "atlas-artifacts",
   state_backend: Atlas.Backend.S3,
   state_bucket: "atlas-state",
   state_key: "atlas/state.json",
   oban_name: Atlas.Oban
-
 
 config :ex_utils, ExUtils.Strings,
   to_existing_atom: false,

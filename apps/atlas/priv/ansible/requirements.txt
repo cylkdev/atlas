@@ -1,0 +1,12 @@
+# Python packages required by Atlas's Ansible playbooks.
+#
+# Installed via `pip3 install -r` inside the builder image
+# (see priv/docker/builder/Dockerfile). Covers the AWS / EC2 / SSM
+# operations Atlas itself performs; consumers that need additional
+# packages add their own overlay rather than editing this file.
+#
+# Version ranges are pinned to the current major. Bump deliberately.
+ansible>=10.0.0,<11.0.0
+boto3>=1.34.0,<2.0.0
+botocore>=1.34.0,<2.0.0
+requests>=2.31.0,<3.0.0

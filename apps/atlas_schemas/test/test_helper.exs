@@ -1,2 +1,2 @@
 ExUnit.start()
-Ecto.Adapters.SQL.Sandbox.mode(AtlasSchemas.Repo, :manual)
+AtlasSchemas.Repo.start_link()

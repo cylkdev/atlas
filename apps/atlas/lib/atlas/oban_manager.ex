@@ -4,13 +4,24 @@ defmodule Atlas.ObanManager do
 
   `supervisor_child_spec/0` returns the `{Oban, opts}` child spec that
   `Atlas.Application` supervises. Base opts declare the instance name,
-  repo, queues, and plugins. Per-env overrides (`:engine`, `:testing`)
-  arrive through `Application.get_env(:atlas, Oban, [])`.
+  repo, engine, queues, and plugins. Per-env overrides (e.g.
+  `:testing`) arrive through `Application.get_env(:atlas, Oban, [])`.
 
-  Oban's default engine is `Oban.Engines.Basic` (Postgres). Consumers
-  using a SQLite-backed repo add the following to their config:
+  ## Engine selection (PLAN.md D2)
 
-      config :atlas, Oban, engine: Oban.Engines.Lite
+  The Oban engine is **derived at runtime** from the resolved repo's
+  adapter, not hardcoded and not read from consumer config:
+
+    * `Ecto.Adapters.SQLite3` → `Oban.Engines.Lite`
+    * `Ecto.Adapters.Postgres` → `Oban.Engines.Basic`
+    * anything else → raises with the unsupported adapter name
+
+  Consumers that previously had to write
+  `config :atlas, Oban, engine: Oban.Engines.Lite` in their own
+  `config.exs` can delete that line — Atlas figures it out from
+  `AtlasSchemas.Config.repo().__adapter__()`. A consumer who still
+  explicitly sets `:engine` via `config :atlas, Oban, engine: ...`
+  wins (the user's explicit override is honored).
 
   `insert_job/3` is the single insertion point for all Atlas Oban jobs.
   No other module references `Oban.*` directly, apart from worker
@@ -41,20 +52,44 @@ defmodule Atlas.ObanManager do
   @doc """
   Returns the `{Oban, opts}` child spec that `Atlas.Application` supervises.
 
-  Base opts set the instance name, repo, queue topology, and plugins.
-  Per-env overrides (engine, testing mode) come in through
-  `Application.get_env(:atlas, Oban, [])`.
+  Base opts set the instance name, repo, engine (derived from the
+  repo's adapter — see `engine_for_adapter!/1`), queue topology, and
+  plugins. Per-env overrides come in through
+  `Application.get_env(:atlas, Oban, [])`. An explicit `:engine` in
+  that config takes precedence over the derived value, so a consumer
+  can still pin the engine if they need to.
   """
   @spec supervisor_child_spec() :: {module(), keyword()}
   def supervisor_child_spec do
+    repo = AtlasSchemas.Config.repo()
+    derived_engine = engine_for_adapter!(repo.__adapter__())
+
     oban_opts =
       Application.get_env(@app, Oban, [])
       |> Keyword.put_new(:name, @oban_name)
-      |> Keyword.put_new(:repo, AtlasSchemas.Config.repo())
+      |> Keyword.put_new(:repo, repo)
+      |> Keyword.put_new(:engine, derived_engine)
       |> Keyword.put(:queues, @queues)
       |> Keyword.put_new(:plugins, @plugins)
 
     {Oban, oban_opts}
+  end
+
+  @doc """
+  Maps an Ecto adapter module to the Oban engine that supports it.
+
+  Raises `ArgumentError` for any adapter Atlas does not support so a
+  misconfigured deploy fails loudly at boot rather than silently
+  selecting the wrong engine.
+  """
+  @spec engine_for_adapter!(module()) :: module()
+  def engine_for_adapter!(Ecto.Adapters.SQLite3), do: Oban.Engines.Lite
+  def engine_for_adapter!(Ecto.Adapters.Postgres), do: Oban.Engines.Basic
+
+  def engine_for_adapter!(other) do
+    raise ArgumentError,
+          "Unsupported adapter for Atlas Oban: #{inspect(other)}. " <>
+            "Atlas supports Ecto.Adapters.Postgres and Ecto.Adapters.SQLite3."
   end
 
   @doc """

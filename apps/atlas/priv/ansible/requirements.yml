@@ -1,0 +1,21 @@
+---
+# Ansible Galaxy collections required by Atlas deploy playbooks.
+#
+# Atlas installs these into `/usr/share/ansible/collections` inside the
+# builder image (see priv/docker/builder/Dockerfile). The set covers
+# the AWS / EC2 / SSM operations Atlas itself performs; consumers that
+# need additional collections add their own overlay rather than
+# editing this file in place.
+#
+# Version ranges are pinned to the current major so a `docker build`
+# in six months still produces a working image without surprise major
+# upgrades. Bump deliberately.
+collections:
+  - name: amazon.aws
+    version: ">=8.0.0,<9.0.0"
+  - name: community.aws
+    version: ">=8.0.0,<9.0.0"
+  - name: community.general
+    version: ">=9.0.0,<10.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0,<2.0.0"

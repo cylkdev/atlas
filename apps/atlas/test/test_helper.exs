@@ -1,5 +1,5 @@
 ExUnit.start()
-Ecto.Adapters.SQL.Sandbox.mode(AtlasSchemas.Repo, :manual)
+AtlasSchemas.Repo.start_link()
 AWS.S3.Sandbox.start_link()
 AWS.IAM.Sandbox.start_link()
 AWS.STS.Sandbox.start_link()

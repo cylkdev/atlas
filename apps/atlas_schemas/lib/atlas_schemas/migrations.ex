@@ -19,17 +19,58 @@ defmodule AtlasSchemas.Migrations do
   """
 
   @doc """
+  Ensures the parent directory of the configured repo's database file
+  exists when the repo uses `Ecto.Adapters.SQLite3`. Idempotent — the
+  underlying `File.mkdir_p!/1` is a no-op if the directory is already
+  there. No-op for every other adapter (including Postgres), where
+  the database is owned by an external server and Atlas does not
+  manage a file path.
+
+  Called from both `migrate/0` (right before
+  `Ecto.Migrator.with_repo/3` opens the database) and from
+  `Mix.Tasks.Atlas.Init.run/1` (immediately after the application
+  tree is up). Putting the call in both places gives the explicit
+  step at the mix-task layer where it belongs *and* a defensive
+  call adjacent to the actual open, with no behavioural change from
+  the second call because `File.mkdir_p!/1` is idempotent.
+
+  Returns `:ok` on success and raises on filesystem failure
+  (permission denied, etc.).
+  """
+  @spec ensure_database_directory!() :: :ok
+  def ensure_database_directory! do
+    repo = AtlasSchemas.Config.repo()
+
+    with Ecto.Adapters.SQLite3 <- repo.__adapter__(),
+         database when is_binary(database) <- repo_database_path(repo) do
+      database |> Path.dirname() |> File.mkdir_p!()
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  defp repo_database_path(repo) do
+    :atlas_schemas
+    |> Application.get_env(repo, [])
+    |> Keyword.get(:database)
+  end
+
+  @doc """
   Runs all pending migrations against `AtlasSchemas.Config.repo()`.
 
-  Uses `Ecto.Migrator.with_repo/3` so the repo is started if it is not
-  already running. Each pending version listed in
-  `AtlasSchemas.Migrations.Postgres.migrations/0` is applied and
-  recorded in `schema_migrations`.
+  Calls `ensure_database_directory!/0` first so a SQLite-configured
+  repo finds its parent directory in place before `Ecto.Migrator`
+  opens the database. Then uses `Ecto.Migrator.with_repo/3` to start
+  the repo if it is not already running and apply each pending
+  version listed in `AtlasSchemas.Migrations.Postgres.migrations/0`.
 
   Returns `:ok` on success and raises on failure.
   """
   @spec migrate() :: :ok
   def migrate do
+    :ok = ensure_database_directory!()
+
     {:ok, _migrated, _apps} =
       Ecto.Migrator.with_repo(
         AtlasSchemas.Config.repo(),

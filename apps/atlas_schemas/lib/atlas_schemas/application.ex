@@ -18,7 +18,7 @@ defmodule AtlasSchemas.Application do
   end
 
   def children do
-    if AtlasSchemas.Config.repo() === AtlasSchemas.Repo do
+    if AtlasSchemas.Config.mix_env === :dev do
       [AtlasSchemas.Repo]
     else
       []

@@ -9,6 +9,17 @@ defmodule Mix.Tasks.Atlas.Workflows.Deploy do
       mix atlas.workflows.deploy
 
   Exits with status 1 if any step failed or the run timed out.
+
+  ## Tunnel reachability
+
+  The pipeline includes an `aws.auto_scaling.listen` step whose
+  webhook target must be reachable from AWS EventBridge. This task
+  does **not** start or stop a Cloudflare tunnel — by design, tunnel
+  lifecycle is owned by `mix atlas.tunnels.start`, which is run as
+  its own separate process. The operator is responsible for bringing
+  the tunnel up (in a separate terminal, systemd unit, or CI
+  background step) before invoking this task, and tearing it down
+  afterwards.
   """
 
   use Mix.Task
