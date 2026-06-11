@@ -16,7 +16,7 @@ defmodule AtlasSchemas.Migrations.Postgres do
   """
 
   @initial_version 1
-  @current_version 1
+  @current_version 2
 
   @doc """
   Returns the ordered list of `{version, module}` tuples for every
