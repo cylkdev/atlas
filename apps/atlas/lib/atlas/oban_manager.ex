@@ -45,7 +45,10 @@ defmodule Atlas.ObanManager do
   ]
 
   @app :atlas
-  @oban_name Application.compile_env!(@app, :oban_name)
+  # Default to Atlas.Oban so consumers compiling Atlas as a dependency
+  # (where Atlas's own config/config.exs is not loaded) do not need to
+  # set :oban_name themselves. Consumers may still override it.
+  @oban_name Application.compile_env(@app, :oban_name, Atlas.Oban)
   @queues [stripe: 10]
   @plugins [Oban.Plugins.Pruner]
 
