@@ -117,6 +117,13 @@ defmodule Atlas.Pipeline do
     * `AWS_REGION` — `aws_region`.
     * `DEPLOY_STRATEGY` — `deploy_strategy`.
 
+  The ansible step also receives the release identity vars derived from
+  the umbrella's single `:releases` entry and its prebuilt tarball at
+  `_build/<env>/<name>-<version>.tar.gz` (which must exist before the
+  workflow is built): `target_app`, `target_release_version`,
+  `target_release_sha256` (matches the `content_id` the publish step
+  derives from the same bytes), and `target_release_tarball`.
+
   Optional:
 
     * `ATLAS_ENDPOINT_PORT` (defaults to `4000`).
@@ -143,6 +150,7 @@ defmodule Atlas.Pipeline do
     release_environment = System.fetch_env!("RELEASE_ENVIRONMENT")
     instance_count = String.to_integer(System.fetch_env!("RELEASE_INSTANCE_COUNT"))
     started_at = DateTime.utc_now()
+    release = deploy_release!()
 
     var_file =
       Path.expand("deploys/terraform/vars/#{release_environment}.tfvars", File.cwd!())
@@ -244,11 +252,52 @@ defmodule Atlas.Pipeline do
               "aws_region" => System.fetch_env!("AWS_REGION"),
               "release_group" => release_group,
               "release_environment" => release_environment,
-              "deploy_strategy" => System.fetch_env!("DEPLOY_STRATEGY")
+              "deploy_strategy" => System.fetch_env!("DEPLOY_STRATEGY"),
+              "target_app" => release.app,
+              "target_release_version" => release.version,
+              "target_release_sha256" => release.sha256,
+              "target_release_tarball" => release.tarball
             }
           }
         }
       ]
+    }
+  end
+
+  # Resolves the single release this deployment ships, from the same
+  # deterministic tarball path `mix atlas.releases.publish` uses. The
+  # sha256 is computed over the tarball bytes with the same encoding as
+  # `Atlas.Crates.publish_content/4`'s content_id, so consumers (e.g.
+  # the ansible s3_release role) can reconstruct the published S3 key.
+  # Raises when the umbrella declares zero or multiple releases, or
+  # when the tarball has not been built yet.
+  defp deploy_release! do
+    config = Mix.Project.config()
+
+    name =
+      case config |> Keyword.get(:releases, []) |> Keyword.keys() do
+        [name] ->
+          name
+
+        names ->
+          raise "deployment requires exactly one release in mix.exs, got: #{inspect(names)}"
+      end
+
+    release = Mix.Release.from_config!(name, config, [])
+    tarball = "#{release.name}-#{release.version}.tar.gz"
+    path = Path.join(Mix.Project.build_path(), tarball)
+
+    unless File.exists?(path) do
+      raise "release tarball not found at #{path}; run `mix atlas.releases.build` first"
+    end
+
+    sha256 = :sha256 |> :crypto.hash(File.read!(path)) |> Base.encode16()
+
+    %{
+      app: to_string(release.name),
+      version: release.version,
+      sha256: sha256,
+      tarball: tarball
     }
   end
 end
