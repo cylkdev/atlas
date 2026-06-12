@@ -102,6 +102,25 @@ defmodule Atlas.Providers.Terraform do
 
   defp log_id(ctx), do: "workflow:#{ctx.workflow_id}:#{ctx.step_id}"
 
+  # `@message` carries only the diagnostic summary. The nested
+  # "diagnostic" map carries the parts needed to act on a failure —
+  # the offending resource address and the full detail text — so
+  # include them when present.
+  defp describe_diagnostic(msg) do
+    diagnostic = Map.get(msg, "diagnostic") || %{}
+
+    [
+      msg["@message"],
+      case Map.get(diagnostic, "address") do
+        nil -> nil
+        address -> "address: #{address}"
+      end,
+      Map.get(diagnostic, "detail")
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n")
+  end
+
   defp fetch(arguments, key) do
     case Map.fetch(arguments, key) do
       {:ok, value} -> {:ok, value}
@@ -212,7 +231,7 @@ defmodule Atlas.Providers.Terraform do
   defp handle_line(line, errors, ctx) do
     case JSON.decode(line) do
       {:ok, %{"type" => "diagnostic", "@level" => "error"} = msg} ->
-        Atlas.Log.error(log_id(ctx), "diagnostic: #{msg["@message"]}")
+        Atlas.Log.error(log_id(ctx), "diagnostic: #{describe_diagnostic(msg)}")
 
         PubSub.publish(
           ctx.workflow_id,
@@ -222,7 +241,7 @@ defmodule Atlas.Providers.Terraform do
         [msg | errors]
 
       {:ok, %{"type" => "diagnostic"} = msg} ->
-        Atlas.Log.warn(log_id(ctx), "diagnostic: #{msg["@message"]}")
+        Atlas.Log.warn(log_id(ctx), "diagnostic: #{describe_diagnostic(msg)}")
 
         PubSub.publish(
           ctx.workflow_id,
