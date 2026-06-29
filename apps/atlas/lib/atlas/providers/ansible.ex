@@ -8,6 +8,11 @@ defmodule Atlas.Providers.Ansible do
   `Atlas.Workflows.Events.ansible_task` event is emitted per task per
   host (in declaration order) and forwarded to the step server.
 
+  Both stdout and stderr are buffered. On a non-zero exit the raw stdout
+  and stderr are logged, so failures that never become a parseable task
+  event — inventory parse errors, connection/unreachable diagnostics,
+  fatals emitted outside the JSON document — are still visible.
+
   Required arguments:
     * `:playbook` (string).
 
@@ -88,18 +93,19 @@ defmodule Atlas.Providers.Ansible do
       msg ->
         case OsCommand.handle_message(msg, state) do
           {:lines, lines, new_state} ->
-            consume(new_state, append_stdout(acc, lines), ctx)
+            consume(new_state, prepend_lines(acc, lines), ctx)
 
           {:exit, 0, tails, _new_state} ->
-            output = collect_output(acc, tails)
-            emit_task_events(output, ctx)
+            lines = Enum.reverse(acc) ++ tails
+            emit_task_events(stdout_text(lines), ctx)
             Atlas.Log.info(log_id(ctx), "ansible-playbook succeeded")
             {:ok, %{exit_status: 0}}
 
           {:exit, status, tails, _new_state} ->
-            output = collect_output(acc, tails)
-            emit_task_events(output, ctx)
+            lines = Enum.reverse(acc) ++ tails
+            emit_task_events(stdout_text(lines), ctx)
             Atlas.Log.error(log_id(ctx), "ansible-playbook exited #{status}")
+            log_failure_output(lines, ctx)
             {:error, %{exit_status: status}, []}
 
           {:noop, new_state} ->
@@ -121,17 +127,31 @@ defmodule Atlas.Providers.Ansible do
     end
   end
 
-  defp append_stdout(acc, lines) do
-    Enum.reduce(lines, acc, fn
-      {:stdout, line}, list -> [line | list]
-      _, list -> list
-    end)
+  # Accumulate stdout AND stderr (tagged), newest first. The JSON callback
+  # writes to stdout; stderr carries the failures the callback never sees
+  # (inventory parse errors, connection/unreachable diagnostics, fatals).
+  defp prepend_lines(acc, lines), do: Enum.reduce(lines, acc, fn line, list -> [line | list] end)
+
+  defp stdout_text(lines), do: for({:stdout, line} <- lines, do: line) |> Enum.join("\n")
+  defp stderr_text(lines), do: for({:stderr, line} <- lines, do: line) |> Enum.join("\n")
+
+  # On a non-zero exit, surface the raw output so the actual error is
+  # visible even when it never made it into a parseable task event.
+  defp log_failure_output(lines, ctx) do
+    err = stderr_text(lines)
+    if err != "", do: Atlas.Log.error(log_id(ctx), "ansible-playbook stderr:\n#{tail(err)}")
+
+    out = stdout_text(lines)
+    if out != "", do: Atlas.Log.error(log_id(ctx), "ansible-playbook stdout:\n#{tail(out)}")
   end
 
-  defp collect_output(acc, tails) do
-    tail_lines = for {:stdout, line} <- tails, do: line
-    (Enum.reverse(acc) ++ tail_lines) |> Enum.join("\n")
+  @max_log_bytes 8_000
+  defp tail(text) when byte_size(text) > @max_log_bytes do
+    "…(truncated, last #{@max_log_bytes} bytes)…\n" <>
+      binary_part(text, byte_size(text) - @max_log_bytes, @max_log_bytes)
   end
+
+  defp tail(text), do: text
 
   defp emit_task_events(output, ctx) do
     case JSON.decode(output) do
@@ -144,7 +164,7 @@ defmodule Atlas.Providers.Ansible do
 
             Enum.each(Map.get(task, "hosts", %{}), fn {host, host_result} ->
               status = classify(host_result)
-              log_task(status, log_id(ctx), play_name, task_name, host)
+              log_task(status, log_id(ctx), play_name, task_name, host, host_result)
 
               event =
                 Event.ansible_task(
@@ -165,17 +185,21 @@ defmodule Atlas.Providers.Ansible do
     end
   end
 
-  defp log_task(:failed, id, play, task, host) do
-    Atlas.Log.error(id, "[#{play}] #{task} on #{host}: failed")
+  defp log_task(:failed, id, play, task, host, result) do
+    Atlas.Log.error(id, "[#{play}] #{task} on #{host}: failed — #{result_msg(result)}")
   end
 
-  defp log_task(:unreachable, id, play, task, host) do
-    Atlas.Log.error(id, "[#{play}] #{task} on #{host}: unreachable")
+  defp log_task(:unreachable, id, play, task, host, result) do
+    Atlas.Log.error(id, "[#{play}] #{task} on #{host}: unreachable — #{result_msg(result)}")
   end
 
-  defp log_task(status, id, play, task, host) when status in [:ok, :changed, :skipped] do
+  defp log_task(status, id, play, task, host, _result) when status in [:ok, :changed, :skipped] do
     Atlas.Log.info(id, "[#{play}] #{task} on #{host}: #{status}")
   end
+
+  defp result_msg(%{"msg" => msg}) when is_binary(msg) and msg != "", do: msg
+  defp result_msg(%{"stderr" => err}) when is_binary(err) and err != "", do: err
+  defp result_msg(result), do: inspect(result, limit: 20)
 
   defp classify(%{"failed" => true}), do: :failed
   defp classify(%{"unreachable" => true}), do: :unreachable
