@@ -233,7 +233,11 @@ defmodule Atlas.Pipeline do
               "target_app" => release.app,
               "target_release_version" => release.version,
               "target_release_sha256" => release.sha256,
-              "target_release_tarball" => release.tarball
+              "target_release_tarball" => release.tarball,
+              # aws_ssm reconnection_retries can only be set via a var, and
+              # group_vars resolve after the connection plugin caches it — so
+              # it must come through --extra-vars. Defaults to the plugin's 3.
+              "ansible_aws_ssm_retries" => System.get_env("ANSIBLE_AWS_SSM_RETRIES", "3")
             }
           }
         }
