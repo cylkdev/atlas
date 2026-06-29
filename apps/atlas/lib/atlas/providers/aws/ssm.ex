@@ -6,16 +6,23 @@ defmodule Atlas.Providers.AWS.SSM do
 
   ## Action: `:wait`
 
-  Polls `AWS.EC2.describe_instances/1` for running instances tagged
-  `ReleaseGroup=<release_group>` / `ReleaseEnvironment=<release_environment>`
-  and `AWS.SSM.describe_instance_information/1` for each instance's
-  `ping_status`. Returns once at least one matching instance exists
-  **and** every currently-listed instance reports
-  `ping_status: "Online"`.
+  Polls the `:client`'s `describe_instances/1` for running instances
+  tagged `ReleaseGroup=<release_group>` /
+  `ReleaseEnvironment=<release_environment>` and
+  `describe_instance_information/1` for each instance's `ping_status`.
+  Returns once at least `:count` matching instances exist **and** every
+  one of them reports `ping_status: "Online"`.
+
+  Readiness is gated on the expected instance *count*, not on launch
+  time. This makes the wait correct for the common case — re-deploying
+  onto an ASG whose instances already exist and were not replaced (no
+  new launch happens, so a launch-time filter would never match) — as
+  well as for a from-scratch deploy, where the count prevents returning
+  before all instances have come up.
 
   Designed to run in parallel with the terraform step that provisions
-  the ASG: the EC2 query will initially return zero results, which the
-  loop treats as "still waiting" within the shared
+  the ASG: the EC2 query will initially return fewer than `:count`
+  results, which the loop treats as "still waiting" within the shared
   `max_attempts × poll_interval_ms` budget.
 
   Mirrors the core polling behaviour of
@@ -29,15 +36,17 @@ defmodule Atlas.Providers.AWS.SSM do
     * `:action` (`:wait`).
     * `:release_environment` (string) — value of the `ReleaseEnvironment` tag
       to filter on (`$1` in the bash script).
-    * `:since` (`DateTime.t()`) — only count instances whose `launch_time`
-      is strictly later than this. Set by the caller to a moment captured
-      before terraform begins so pre-existing instances from a prior
-      deploy are ignored.
+    * `:count` (pos integer) — number of tagged, running, SSM-Online
+      instances to wait for (the expected ASG size). The wait succeeds
+      once at least this many matching instances are all Online.
 
   Optional arguments:
     * `:region` (string, default `"us-east-1"`).
     * `:release_group` (string, default `"cylk"`) — value of the
       `ReleaseGroup` tag.
+    * `:client` (module, default `Atlas.Providers.AWS.Client.Live`) —
+      a module implementing `Atlas.Providers.AWS.Client`. Override in
+      tests with a stub.
     * `:max_attempts` (pos integer, default `30`).
     * `:poll_interval_ms` (pos integer, default `10_000`).
 
@@ -61,6 +70,7 @@ defmodule Atlas.Providers.AWS.SSM do
 
   @default_region "us-east-1"
   @default_release_group "cylk"
+  @default_client Atlas.Providers.AWS.Client.Live
   @default_max_attempts 30
   @default_poll_interval_ms 10_000
 
@@ -77,12 +87,13 @@ defmodule Atlas.Providers.AWS.SSM do
 
   defp dispatch(:wait, arguments, ctx) do
     with {:ok, release_environment} <- fetch(arguments, :release_environment),
-         {:ok, since} <- fetch(arguments, :since) do
+         {:ok, count} <- fetch(arguments, :count) do
       opts = %{
         release_environment: release_environment,
-        since: since,
+        count: count,
         region: Map.get(arguments, :region, @default_region),
         release_group: Map.get(arguments, :release_group, @default_release_group),
+        client: Map.get(arguments, :client, @default_client),
         max_attempts: Map.get(arguments, :max_attempts, @default_max_attempts),
         poll_interval_ms: Map.get(arguments, :poll_interval_ms, @default_poll_interval_ms)
       }
@@ -91,7 +102,7 @@ defmodule Atlas.Providers.AWS.SSM do
         log_id(ctx),
         "waiting for SSM online tag:ReleaseGroup=#{opts.release_group} " <>
           "tag:ReleaseEnvironment=#{opts.release_environment} " <>
-          "since=#{DateTime.to_iso8601(opts.since)} " <>
+          "count=#{opts.count} " <>
           "(budget #{opts.max_attempts}×#{opts.poll_interval_ms}ms)"
       )
 
@@ -172,7 +183,7 @@ defmodule Atlas.Providers.AWS.SSM do
         end
       end)
 
-    if MapSet.equal?(current_ids, new_online) do
+    if MapSet.size(current_ids) >= opts.count and MapSet.subset?(current_ids, new_online) do
       ids = MapSet.to_list(current_ids)
       Atlas.Log.info(log_id(ctx), "all #{length(ids)} instance(s) Online: #{Enum.join(ids, ",")}")
       {:ok, %{instance_ids: ids}}
@@ -193,7 +204,7 @@ defmodule Atlas.Providers.AWS.SSM do
   end
 
   defp describe_target_instances(opts) do
-    case AWS.EC2.describe_instances(
+    case opts.client.describe_instances(
            region: opts.region,
            filters: [
              %{name: "tag:ReleaseGroup", values: [opts.release_group]},
@@ -205,7 +216,6 @@ defmodule Atlas.Providers.AWS.SSM do
         instances =
           for reservation <- reservations,
               instance <- reservation.instances,
-              launched_after?(instance, opts.since),
               do: instance
 
         {:ok, instances}
@@ -215,26 +225,8 @@ defmodule Atlas.Providers.AWS.SSM do
     end
   end
 
-  defp launched_after?(instance, %DateTime{} = since) do
-    case instance |> Map.get(:launch_time) |> to_datetime() do
-      %DateTime{} = launch_time -> DateTime.compare(launch_time, since) == :gt
-      nil -> false
-    end
-  end
-
-  defp to_datetime(%DateTime{} = dt), do: dt
-
-  defp to_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _offset} -> dt
-      _ -> nil
-    end
-  end
-
-  defp to_datetime(_), do: nil
-
   defp ping_status(id, opts) do
-    case AWS.SSM.describe_instance_information(
+    case opts.client.describe_instance_information(
            region: opts.region,
            filters: [%{"Key" => "InstanceIds", "Values" => [id]}]
          ) do
@@ -256,7 +248,7 @@ defmodule Atlas.Providers.AWS.SSM do
     )
 
     log_call(log_id(ctx), "ssm:describe_instance_information", fn ->
-      AWS.SSM.describe_instance_information(
+      opts.client.describe_instance_information(
         region: opts.region,
         filters: [%{"Key" => "InstanceIds", "Values" => [instance.instance_id]}]
       )
@@ -265,7 +257,7 @@ defmodule Atlas.Providers.AWS.SSM do
     case Map.get(instance, :vpc_id) do
       vpc_id when is_binary(vpc_id) and vpc_id != "" ->
         log_call(log_id(ctx), "ec2:describe_security_groups vpc=#{vpc_id}", fn ->
-          AWS.EC2.describe_security_groups(
+          opts.client.describe_security_groups(
             region: opts.region,
             filters: [%{name: "vpc-id", values: [vpc_id]}]
           )

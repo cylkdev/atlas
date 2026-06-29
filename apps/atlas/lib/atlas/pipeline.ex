@@ -20,12 +20,14 @@ defmodule Atlas.Pipeline do
     4. `terraform apply <plan-file>` against that artifact. Runs
        concurrently with step 5 (both depend only on `terraform.plan`).
     5. `Atlas.Providers.AWS.SSM` with `action: :wait` polls
-       `AWS.EC2.describe_instances` for tagged running instances whose
-       `launch_time` is later than the workflow's start moment, then
-       checks `AWS.SSM.describe_instance_information` for each instance's
-       `ping_status`. Returns once every matching instance reports
-       `"Online"`. This is the sole readiness gate for `ansible.deploy`:
-       it polls AWS directly and needs no inbound event delivery.
+       `describe_instances` for tagged running instances, then checks
+       `describe_instance_information` for each instance's `ping_status`.
+       Returns once at least `RELEASE_INSTANCE_COUNT` matching instances
+       are all `"Online"`. This is the sole readiness gate for
+       `ansible.deploy`: it polls AWS directly (no inbound event
+       delivery), and gates on instance count rather than launch time,
+       so it works whether the instances were just launched by step 4
+       or already existed from a prior deploy.
     6. `ansible-playbook deploy.yaml -i aws_ec2.yaml --extra-vars ...`
        against `deploys/ansible`. The playbook resolves the latest
        published release for `release_group` via the
@@ -94,6 +96,8 @@ defmodule Atlas.Pipeline do
     * `RELEASE_GROUP` — the application identifier.
     * `RELEASE_ENVIRONMENT` — the deployment environment (selects the
       `<RELEASE_ENVIRONMENT>.tfvars` file).
+    * `RELEASE_INSTANCE_COUNT` — expected ASG size; the number of
+      tagged, SSM-Online instances `aws.ssm.wait` waits for.
 
   Terraform-only (consumed by `terraform.plan`):
 
@@ -134,7 +138,7 @@ defmodule Atlas.Pipeline do
   def for_deployment(workflow_id) do
     release_group = System.fetch_env!("RELEASE_GROUP")
     release_environment = System.fetch_env!("RELEASE_ENVIRONMENT")
-    started_at = DateTime.utc_now()
+    instance_count = String.to_integer(System.fetch_env!("RELEASE_INSTANCE_COUNT"))
     release = deploy_release!()
 
     var_file =
@@ -208,7 +212,7 @@ defmodule Atlas.Pipeline do
             action: :wait,
             release_environment: release_environment,
             release_group: release_group,
-            since: started_at,
+            count: instance_count,
             max_attempts: 60,
             poll_interval_ms: 10_000
           }
