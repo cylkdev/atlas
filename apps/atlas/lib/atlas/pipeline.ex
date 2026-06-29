@@ -8,8 +8,7 @@ defmodule Atlas.Pipeline do
         └── terraform.init
               └── terraform.plan
                     ├── terraform.apply
-                    ├── aws.ssm.wait              ─┐
-                    └── aws.auto_scaling.listen   ─┴── ansible.deploy
+                    └── aws.ssm.wait ── ansible.deploy
 
     1. `mix atlas.releases.publish` against the umbrella root with
        `MIX_ENV=prod`. Builds (if needed) and publishes every release
@@ -19,20 +18,15 @@ defmodule Atlas.Pipeline do
     3. `terraform plan` against `deploys/terraform`, writing the binary
        plan artifact via `-out=`.
     4. `terraform apply <plan-file>` against that artifact. Runs
-       concurrently with steps 5 and 6 (all three depend only on
-       `terraform.plan`).
+       concurrently with step 5 (both depend only on `terraform.plan`).
     5. `Atlas.Providers.AWS.SSM` with `action: :wait` polls
        `AWS.EC2.describe_instances` for tagged running instances whose
        `launch_time` is later than the workflow's start moment, then
        checks `AWS.SSM.describe_instance_information` for each instance's
        `ping_status`. Returns once every matching instance reports
-       `"Online"`.
-    6. `Atlas.Providers.AWS.AutoScaling` with `action: :listen`
-       subscribes to `Atlas.AutoScaling.PubSub` and waits for
-       `RELEASE_INSTANCE_COUNT` `EC2 Instance-launch Lifecycle Action`
-       events from the ASG provisioned by step 4 (matched by
-       `name_prefix`).
-    7. `ansible-playbook deploy.yaml -i aws_ec2.yaml --extra-vars ...`
+       `"Online"`. This is the sole readiness gate for `ansible.deploy`:
+       it polls AWS directly and needs no inbound event delivery.
+    6. `ansible-playbook deploy.yaml -i aws_ec2.yaml --extra-vars ...`
        against `deploys/ansible`. The playbook resolves the latest
        published release for `release_group` via the
        `GET /crates/:release_group/latest` HTTP endpoint and downloads
@@ -100,8 +94,6 @@ defmodule Atlas.Pipeline do
     * `RELEASE_GROUP` — the application identifier.
     * `RELEASE_ENVIRONMENT` — the deployment environment (selects the
       `<RELEASE_ENVIRONMENT>.tfvars` file).
-    * `RELEASE_INSTANCE_COUNT` — number of ASG launch events to wait
-      for in the listener step.
 
   Terraform-only (consumed by `terraform.plan`):
 
@@ -137,18 +129,11 @@ defmodule Atlas.Pipeline do
 
   A Postgres database reachable from this host. The application creates
   its own tables on first boot.
-
-  ### 6. EventBridge → endpoint reachability
-
-  `terraform.apply` provisions the EventBridge rule, connection, and
-  API destination. The webhook URL must be publicly reachable from
-  EventBridge and route to this host's HTTP endpoint.
   """
   @spec for_deployment(workflow_id :: nil | String.t()) :: Workflow.t()
   def for_deployment(workflow_id) do
     release_group = System.fetch_env!("RELEASE_GROUP")
     release_environment = System.fetch_env!("RELEASE_ENVIRONMENT")
-    instance_count = String.to_integer(System.fetch_env!("RELEASE_INSTANCE_COUNT"))
     started_at = DateTime.utc_now()
     release = deploy_release!()
 
@@ -229,21 +214,9 @@ defmodule Atlas.Pipeline do
           }
         },
         %Step{
-          id: "aws-auto-scaling-listen",
-          provider: Atlas.Providers.AWS.AutoScaling,
-          depends_on: ["terraform-plan"],
-          arguments: %{
-            action: :listen,
-            name_prefix: "#{release_group}-#{release_environment}-",
-            count: instance_count,
-            handler: {Atlas.Providers.AWS.AutoScaling.OnAutoScalingGroupLaunch, :handle},
-            timeout_ms: 600_000
-          }
-        },
-        %Step{
           id: "ansible-deploy",
           provider: Atlas.Providers.Ansible,
-          depends_on: ["aws-auto-scaling-listen", "aws-ssm-wait"],
+          depends_on: ["aws-ssm-wait"],
           arguments: %{
             playbook: @ansible_playbook,
             inventory: @ansible_inventory,
